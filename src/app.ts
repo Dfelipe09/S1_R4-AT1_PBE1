@@ -41,13 +41,35 @@ const queryChamadoSchema = z.object({
 
 type Chamado = z.infer<typeof createChamadoSchema> & { id: string };
 
+app.get("/chamados/:id", (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+
+        const data: string = fs.readFileSync(FILE, "utf-8");
+        const chamados: Chamado[] = JSON.parse(data);
+
+        // Busca por ID
+        const chamadoEncontrado = chamados.find((chamado) => chamado.id === id);
+
+        if (!chamadoEncontrado) {
+            return res.status(404).json({ erro: "Chamado não encontrado!" });
+        }
+
+        return res.status(200).json(chamadoEncontrado);
+
+    } catch (error) {
+        console.error("Erro ao buscar por ID:", error);
+        return res.status(500).json({ erro: "Erro interno ao buscar o chamado." });
+    }
+});
+
 app.get("/chamados", (req: Request, res: Response) => {
     try {
         const query = queryChamadoSchema.parse(req.query);
         const data: string = fs.readFileSync(FILE, "utf-8");
         let chamados: Chamado[] = JSON.parse(data);
 
-        // Aplica os filtros de busca (se fornecidos no req.query)
+        // Aplica os filtros de busca (se fornecidos via req.query)
         if (query.nomeCliente) {
             chamados = chamados.filter(c =>
                 c.nomeCliente.toLowerCase().includes(query.nomeCliente!.toLowerCase())
@@ -78,11 +100,11 @@ app.get("/chamados", (req: Request, res: Response) => {
             return query.order === "desc" ? -compare : compare;
         });
 
-        // Total de páginas (calculado após a filtragem)
+        // Total de páginas (calculado após os filtros)
         const totalRegistros = chamados.length;
         const totalPages = Math.ceil(totalRegistros / query.limit) || 1;
 
-        // Paginação (após filtragem e ordenação)
+        // Paginação
         const inicioSlice = (query.page - 1) * query.limit;
         const finalSlice = query.page * query.limit;
         const chamadosPaginados = chamados.slice(inicioSlice, finalSlice);
