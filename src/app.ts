@@ -1,15 +1,14 @@
+import { randomUUID } from "crypto";
 import express from "express";
 import type { Express, Request, Response } from "express";
 import fs from "fs";
-import crypto from "crypto";
 import { z } from "zod";
 
 const PORT: number = 8081;
 const app: Express = express();
 
-// Comando para criar a pasta dados e arquivo JSON
 const DIR = "./dados";
-const FILE = `${DIR}/produtos.json`;
+const FILE = `${DIR}/chamados.json`;
 
 // Verificação para ver se o arquivo já existe, para não substituí-lo
 if (!fs.existsSync(FILE)) {
@@ -20,52 +19,49 @@ if (!fs.existsSync(FILE)) {
 // Middleware para interpretar JSON no corpo da requisição
 app.use(express.json());
 
-const createProdutoSchema = z.object({
-    nomeProduto: z.string().min(3),
-    precoProduto: z.coerce.number().positive(),
+const createChamadoSchema = z.object({
+    nomeCliente: z.string().min(3),
+    equipamento: z.string().min(2),
+    descricaoProblema: z.string().min(6),
+    Prioridade: z.enum(["Baixa", "Média", "Alta"]).default("Média"),
+    Status: z.enum(["Aberto", "Em Andamento", "Concluído"]).default("Aberto")
 });
 
-type Produto = {
-    id: string;
-    nome: string;
-    preco: number;
-};
+// Define o tipo extraindo do schema do Zod + adicionando a propriedade id
+type Chamado = z.infer<typeof createChamadoSchema> & { id: string };
 
-app.post("/produtos", (req: Request, res: Response) => {
+app.post("/chamados", (req: Request, res: Response) => {
     try {
-        const { nomeProduto, precoProduto } = createProdutoSchema.parse(req.body);
+        const dadosValidados = createChamadoSchema.parse(req.body);
 
-        // Cria a constante para armazenar os dados e não perdê-los
         const data: string = fs.readFileSync(FILE, "utf-8");
-        let produtos: Produto[] = JSON.parse(data);
+        const chamados: Chamado[] = JSON.parse(data);
 
-        // Comando para criar novos produtos
-        // randomUUID cria automaticamente os IDs 
-        let novoProduto: Produto = {
-            id: crypto.randomUUID(),
-            nome: nomeProduto,
-            preco: precoProduto,
+        const novoChamado: Chamado = {
+            id: randomUUID(),
+            ...dadosValidados
         };
 
-        // Empurra um novo registro para o final da lista
-        produtos.push(novoProduto);
+        chamados.push(novoChamado);
 
-        fs.writeFileSync(FILE, JSON.stringify(produtos, null, 4), "utf-8");
+        fs.writeFileSync(FILE, JSON.stringify(chamados, null, 4), "utf-8");
 
         return res.status(201).json({
-            message: `Produto ${nomeProduto} - R$ ${precoProduto} foi criado com sucesso!`,
+            message: `O chamado com ID ${novoChamado.id} do(a) cliente${novoChamado.nomeCliente} foi criado com sucesso!`,
+            chamado: novoChamado
         });
+
     } catch (error) {
         if (error instanceof z.ZodError) {
             return res.status(400).json({
                 erro: "Os parâmetros enviados são inválidos!",
-                detalhes: error.issues,
+                detalhes: error.issues
             });
         }
 
-        console.error("Erro interno ao cadastrar produto:", error);
+        console.error("Erro interno ao cadastrar chamado:", error);
         return res.status(500).json({
-            erro: "Erro interno no servidor ao cadastrar produto.",
+            erro: "Erro interno no servidor ao cadastrar chamado."
         });
     }
 });
