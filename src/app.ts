@@ -41,6 +41,7 @@ const queryChamadoSchema = z.object({
 
 type Chamado = z.infer<typeof createChamadoSchema> & { id: string };
 
+// Rota GET de busca por ID
 app.get("/chamados/:id", (req: Request, res: Response) => {
     try {
         const { id } = req.params;
@@ -63,13 +64,14 @@ app.get("/chamados/:id", (req: Request, res: Response) => {
     }
 });
 
+// Rota GET unificada (Listagem, Filtros, Ordenação e Paginação)
 app.get("/chamados", (req: Request, res: Response) => {
     try {
         const query = queryChamadoSchema.parse(req.query);
         const data: string = fs.readFileSync(FILE, "utf-8");
         let chamados: Chamado[] = JSON.parse(data);
 
-        // Aplica os filtros de busca (se fornecidos via req.query)
+        // 1. Aplica filtros de busca (se informados na query)
         if (query.nomeCliente) {
             chamados = chamados.filter(c =>
                 c.nomeCliente.toLowerCase().includes(query.nomeCliente!.toLowerCase())
@@ -92,7 +94,7 @@ app.get("/chamados", (req: Request, res: Response) => {
             chamados = chamados.filter(c => c.Prioridade === query.Prioridade);
         }
 
-        // Aplica ordenação
+        // 2. Aplica ordenação
         chamados.sort((a, b) => {
             const valA = a[query.sortBy];
             const valB = b[query.sortBy];
@@ -100,11 +102,10 @@ app.get("/chamados", (req: Request, res: Response) => {
             return query.order === "desc" ? -compare : compare;
         });
 
-        // Total de páginas (calculado após os filtros)
+        // 3. Aplica paginação
         const totalRegistros = chamados.length;
         const totalPages = Math.ceil(totalRegistros / query.limit) || 1;
 
-        // Paginação
         const inicioSlice = (query.page - 1) * query.limit;
         const finalSlice = query.page * query.limit;
         const chamadosPaginados = chamados.slice(inicioSlice, finalSlice);
@@ -129,6 +130,7 @@ app.get("/chamados", (req: Request, res: Response) => {
     }
 });
 
+// Método POST
 app.post("/chamados", (req: Request, res: Response) => {
     try {
         const dadosValidados = createChamadoSchema.parse(req.body);
